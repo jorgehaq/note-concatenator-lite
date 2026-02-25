@@ -3,6 +3,7 @@ import argparse
 import json
 import os
 import sys
+from datetime import datetime
 from pathlib import Path
 
 # ANSI color codes
@@ -20,6 +21,7 @@ DEFAULT_CONFIG_TEMPLATE = {
         "source": str(Path.home() / "projects" / "example"),
         "output": str(Path.home() / "notes"),
         "note-name": "example-context",
+        "versionar": False,
         "extensions": [".py", ".md", ".json"],
         "ignore": [".git", "__pycache__", "node_modules", ".venv"]
     }
@@ -56,6 +58,14 @@ def concat_project(project_name, config):
     note_path = Path(note_name)
     if not note_path.suffix:
         note_name += ".md"
+        note_path = Path(note_name)
+
+    # Apply versioning if requested
+    if proj.get("versionar", False):
+        timestamp = datetime.now().strftime("-%y-%m-%d.%H-%M-%S")
+        stem = note_path.stem
+        suffix = note_path.suffix
+        note_name = f"{stem}{timestamp}{suffix}"
         
     # Final output path: base_path / project_name / note_name
     # NO .resolve() on output_file to avoid OSError on WSL2/drvfs symlinks
