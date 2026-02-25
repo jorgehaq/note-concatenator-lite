@@ -27,8 +27,10 @@ Edit `~/.concat_projects.json` to define your projects:
 ```json
 {
   "my_project": {
+    "command": "concat my_project",
+    "note": "my_project.md",
     "source": "/path/to/source",
-    "output": "/path/to/output.md",
+    "output": "/path/to/",
     "extensions": [".py", ".md"],
     "ignore": [".git", ".venv"]
   }

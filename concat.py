@@ -18,7 +18,8 @@ CONFIG_PATH = Path.home() / ".concat_projects.json"
 DEFAULT_CONFIG_TEMPLATE = {
     "example-project": {
         "source": str(Path.home() / "projects" / "example"),
-        "output": str(Path.home() / "notes" / "example-context.md"),
+        "output": str(Path.home() / "notes"),
+        "note-name": "example-context",
         "extensions": [".py", ".md", ".json"],
         "ignore": [".git", "__pycache__", "node_modules", ".venv"]
     }
@@ -45,8 +46,21 @@ def concat_project(project_name, config):
         sys.exit(1)
 
     proj = config[project_name]
-    source_dir = Path(proj.get("source", ""))
-    output_file = Path(proj.get("output", ""))
+    source_dir = Path(proj.get("source", "")).expanduser().resolve()
+    
+    # Refactored dynamic output path
+    base_path = Path(proj.get("output", "")).expanduser()
+    note_name = proj.get("note-name", project_name)
+    
+    # Ensure note_name has an extension
+    note_path = Path(note_name)
+    if not note_path.suffix:
+        note_name += ".md"
+        
+    # Final output path: base_path / project_name / note_name
+    # NO .resolve() on output_file to avoid OSError on WSL2/drvfs symlinks
+    output_file = base_path / project_name / note_name
+    
     extensions = proj.get("extensions", [])
     ignore_list = proj.get("ignore", [])
 
