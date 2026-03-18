@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 import argparse
 import json
-import os
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -14,7 +13,8 @@ CLR_YELLOW = "\033[33m"
 CLR_CYAN = "\033[36m"
 CLR_BOLD = "\033[1m"
 
-CONFIG_PATH = Path.home() / ".concat_projects.json"
+HOME_CONFIG_PATH = Path.home() / ".concat_projects.json"
+LOCAL_CONFIG_BASENAME = ".concat_projects.json"
 
 DEFAULT_CONFIG_TEMPLATE = {
     "example-project": {
@@ -27,23 +27,68 @@ DEFAULT_CONFIG_TEMPLATE = {
     }
 }
 
-def load_config():
-    if not CONFIG_PATH.exists():
-        with open(CONFIG_PATH, "w") as f:
+def _find_git_root(start_dir: Path) -> Path | None:
+    cur = start_dir.resolve()
+    for parent in (cur, *cur.parents):
+        if (parent / ".git").exists():
+            return parent
+    return None
+
+def _find_local_config(start_dir: Path) -> Path | None:
+    cur = start_dir.resolve()
+    for parent in (cur, *cur.parents):
+        candidate = parent / LOCAL_CONFIG_BASENAME
+        if candidate.exists():
+            return candidate
+        if (parent / ".git").exists():
+            break
+    return None
+
+def get_config_path() -> Path:
+    local = _find_local_config(Path.cwd())
+    if local is not None:
+        return local
+    return HOME_CONFIG_PATH
+
+def load_config(config_path: Path):
+    if not config_path.exists():
+        git_root = _find_git_root(Path.cwd())
+        if git_root is not None and config_path == HOME_CONFIG_PATH:
+            config_path = git_root / LOCAL_CONFIG_BASENAME
+
+    if not config_path.exists():
+        with open(config_path, "w") as f:
             json.dump(DEFAULT_CONFIG_TEMPLATE, f, indent=2)
-        print(f"{CLR_YELLOW}Warning: {CONFIG_PATH} not found. Created a template.{CLR_RESET}")
+        print(f"{CLR_YELLOW}Warning: {config_path} not found. Created a template.{CLR_RESET}")
         return DEFAULT_CONFIG_TEMPLATE
     
     try:
-        with open(CONFIG_PATH, "r") as f:
+        with open(config_path, "r") as f:
             return json.load(f)
     except Exception as e:
         print(f"{CLR_RED}Error: Failed to parse config file: {e}{CLR_RESET}")
         sys.exit(1)
 
-def concat_project(project_name, config):
+def list_projects(config: dict, config_path: Path) -> None:
+    names = sorted([k for k in config.keys() if isinstance(k, str)])
+    print(f"{CLR_CYAN}{CLR_BOLD}Config:{CLR_RESET} {config_path}")
+    if not names:
+        print(f"{CLR_YELLOW}No projects found in config.{CLR_RESET}")
+        return
+
+    for i, name in enumerate(names, start=1):
+        proj = config.get(name, {})
+        source = proj.get("source", "")
+        output = proj.get("output", "")
+        note_name = proj.get("note-name", "")
+        suffix = ""
+        if any([source, output, note_name]):
+            suffix = f"  {CLR_YELLOW}(source={source}, output={output}, note-name={note_name}){CLR_RESET}"
+        print(f"{i:>2}. {name}{suffix}")
+
+def concat_project(project_name, config, config_path: Path):
     if project_name not in config:
-        print(f"{CLR_RED}Error: Project '{project_name}' not found in {CONFIG_PATH}{CLR_RESET}")
+        print(f"{CLR_RED}Error: Project '{project_name}' not found in {config_path}{CLR_RESET}")
         print(f"Available projects: {', '.join(config.keys())}")
         sys.exit(1)
 
@@ -122,11 +167,19 @@ def concat_project(project_name, config):
 
 def main():
     parser = argparse.ArgumentParser(description="LiteConcat v3.0: Concatenate project files into a single Markdown.")
-    parser.add_argument("project", help="Name of the project to concatenate (from ~/.concat_projects.json)")
+    parser.add_argument(
+        "project",
+        help="Project name, or 'list' to show available projects",
+    )
     args = parser.parse_args()
 
-    config = load_config()
-    concat_project(args.project, config)
+    config_path = get_config_path()
+    config = load_config(config_path)
+    if args.project == "list":
+        list_projects(config, config_path)
+        return
+
+    concat_project(args.project, config, config_path)
 
 if __name__ == "__main__":
     main()

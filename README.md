@@ -11,7 +11,7 @@ Extremely minimalist tool to concatenate project files into a single Markdown fi
 
 2. **Alias**: Add an alias to your `~/.bashrc` or `~/.zshrc`:
    ```bash
-   alias concat='python3 /home/jorgehaq_wsl/projects/note-concatenator-lite/concat.py'
+   alias concat='python3 /ABS/PATH/TO/note-concatenator-lite/concat.py'
    ```
    *Note: Use the absolute path to `concat.py`.*
 
@@ -22,7 +22,8 @@ Extremely minimalist tool to concatenate project files into a single Markdown fi
 
 ## Configuration
 
-Edit `~/.concat_projects.json` to define your projects:
+Define your projects in `.concat_projects.json` (recommended, in the project folder).  
+Fallback: `~/.concat_projects.json`.
 
 ```json
 {
@@ -41,4 +42,10 @@ Edit `~/.concat_projects.json` to define your projects:
 
 ```bash
 concat my_project
+```
+
+List available projects:
+
+```bash
+concat list
 ```
