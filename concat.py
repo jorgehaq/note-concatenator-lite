@@ -23,9 +23,10 @@ DEFAULT_CONFIG_TEMPLATE = {
         "note-name": "example-context",
         "versionar": False,
         "extensions": [".py", ".md", ".json"],
-        "ignore": [".git", "__pycache__", "node_modules", ".venv"]
+        "ignore": [".git", "__pycache__", "node_modules", ".venv"],
     }
 }
+
 
 def _find_git_root(start_dir: Path) -> Path | None:
     cur = start_dir.resolve()
@@ -33,6 +34,7 @@ def _find_git_root(start_dir: Path) -> Path | None:
         if (parent / ".git").exists():
             return parent
     return None
+
 
 def _find_local_config(start_dir: Path) -> Path | None:
     cur = start_dir.resolve()
@@ -44,11 +46,13 @@ def _find_local_config(start_dir: Path) -> Path | None:
             break
     return None
 
+
 def get_config_path() -> Path:
     local = _find_local_config(Path.cwd())
     if local is not None:
         return local
     return HOME_CONFIG_PATH
+
 
 def load_config(config_path: Path):
     if not config_path.exists():
@@ -59,15 +63,19 @@ def load_config(config_path: Path):
     if not config_path.exists():
         with open(config_path, "w") as f:
             json.dump(DEFAULT_CONFIG_TEMPLATE, f, indent=2)
-        print(f"{CLR_YELLOW}Warning: {config_path} not found. Created a template.{CLR_RESET}")
+        print(
+            f"{CLR_YELLOW}Warning: {config_path} not found. Created a template."
+            f"{CLR_RESET}"
+        )
         return DEFAULT_CONFIG_TEMPLATE
-    
+
     try:
         with open(config_path, "r") as f:
             return json.load(f)
     except Exception as e:
         print(f"{CLR_RED}Error: Failed to parse config file: {e}{CLR_RESET}")
         sys.exit(1)
+
 
 def list_projects(config: dict, config_path: Path) -> None:
     names = sorted([k for k in config.keys() if isinstance(k, str)])
@@ -83,8 +91,45 @@ def list_projects(config: dict, config_path: Path) -> None:
         note_name = proj.get("note-name", "")
         suffix = ""
         if any([source, output, note_name]):
-            suffix = f"  {CLR_YELLOW}(source={source}, output={output}, note-name={note_name}){CLR_RESET}"
+            suffix = (
+                f"  {CLR_YELLOW}(source={source}, output={output}, "
+                f"note-name={note_name}){CLR_RESET}"
+            )
         print(f"{i:>2}. {name}{suffix}")
+
+
+def _paths_to_tree(relative_paths: list[Path]) -> dict:
+    tree: dict = {}
+    for rel in relative_paths:
+        node = tree
+        parts = rel.parts
+        for part in parts[:-1]:
+            node = node.setdefault(part, {})
+        node.setdefault("__files__", []).append(parts[-1])
+    return tree
+
+
+def _render_tree(tree: dict, prefix: str = "") -> list[str]:
+    lines: list[str] = []
+    dir_entries = sorted([k for k in tree.keys() if k != "__files__"])
+    files = sorted(tree.get("__files__", []))
+    entries: list[tuple[str, str]] = [(d, "dir") for d in dir_entries] + [
+        (f, "file") for f in files
+    ]
+
+    for idx, (name, kind) in enumerate(entries):
+        last = idx == len(entries) - 1
+        branch = "└── " if last else "├── "
+        if kind == "file":
+            lines.append(f"{prefix}{branch}{name}")
+            continue
+
+        lines.append(f"{prefix}{branch}{name}/")
+        child_prefix = f"{prefix}{'    ' if last else '│   '}"
+        lines.extend(_render_tree(tree[name], prefix=child_prefix))
+
+    return lines
+
 
 def concat_project(project_name, config, config_path: Path):
     if project_name not in config:
@@ -94,11 +139,11 @@ def concat_project(project_name, config, config_path: Path):
 
     proj = config[project_name]
     source_dir = Path(proj.get("source", "")).expanduser().resolve()
-    
+
     # Refactored dynamic output path
     base_path = Path(proj.get("output", "")).expanduser()
     note_name = proj.get("note-name", project_name)
-    
+
     # Ensure note_name has an extension
     note_path = Path(note_name)
     if not note_path.suffix:
@@ -111,16 +156,19 @@ def concat_project(project_name, config, config_path: Path):
         stem = note_path.stem
         suffix = note_path.suffix
         note_name = f"{stem}{timestamp}{suffix}"
-        
+
     # Final output path: base_path / project_name / note_name
     # NO .resolve() on output_file to avoid OSError on WSL2/drvfs symlinks
     output_file = base_path / project_name / note_name
-    
+
     extensions = proj.get("extensions", [])
     ignore_list = proj.get("ignore", [])
 
     if not source_dir.exists() or not source_dir.is_dir():
-        print(f"{CLR_RED}Error: Source directory '{source_dir}' does not exist or is not a directory.{CLR_RESET}")
+        print(
+            f"{CLR_RED}Error: Source directory '{source_dir}' does not exist or is "
+            f"not a directory.{CLR_RESET}"
+        )
         sys.exit(1)
 
     print(f"{CLR_CYAN}Concatenating {CLR_BOLD}{project_name}{CLR_RESET}...")
@@ -132,21 +180,25 @@ def concat_project(project_name, config, config_path: Path):
     try:
         with open(output_file, "w", encoding="utf-8") as out:
             out.write(f"# Project: {project_name}\n\n")
-            
+
             count = 0
+            included_paths: list[Path] = []
             for path in sorted(source_dir.rglob("*")):
                 if not path.is_file():
                     continue
-                
+
                 # Check for ignored directories in the path
                 if any(ignored in path.parts for ignored in ignore_list):
                     continue
-                
+
                 if path.suffix in extensions:
                     try:
                         relative_path = path.relative_to(source_dir)
-                        content = path.read_text(encoding="utf-8", errors="replace")
-                        
+                        content = path.read_text(
+                            encoding="utf-8",
+                            errors="replace",
+                        )
+
                         out.write(f"### 📄 {relative_path}\n")
                         # Guess language for markdown block if possible, else empty
                         lang = path.suffix[1:] if path.suffix else ""
@@ -156,17 +208,35 @@ def concat_project(project_name, config, config_path: Path):
                             out.write("\n")
                         out.write("```\n\n")
                         count += 1
+                        included_paths.append(relative_path)
                         print(f"  {CLR_GREEN}Added:{CLR_RESET} {relative_path}")
                     except Exception as e:
-                        print(f"  {CLR_YELLOW}Skipped:{CLR_RESET} {path} (Error: {e})")
+                        print(
+                            f"  {CLR_YELLOW}Skipped:{CLR_RESET} {path} "
+                            f"(Error: {e})"
+                        )
 
-        print(f"\n{CLR_GREEN}{CLR_BOLD}Success!{CLR_RESET} {count} files concatenated into {output_file}")
+            out.write("## File structure (concatenated)\n\n")
+            out.write("```text\n")
+            out.write(f"{project_name}/\n")
+            tree = _paths_to_tree(included_paths)
+            for line in _render_tree(tree):
+                out.write(f"{line}\n")
+            out.write("```\n\n")
+
+        print(
+            f"\n{CLR_GREEN}{CLR_BOLD}Success!{CLR_RESET} {count} files "
+            f"concatenated into {output_file}"
+        )
     except Exception as e:
         print(f"{CLR_RED}Error: Failed to write to output file: {e}{CLR_RESET}")
         sys.exit(1)
 
+
 def main():
-    parser = argparse.ArgumentParser(description="LiteConcat v3.0: Concatenate project files into a single Markdown.")
+    parser = argparse.ArgumentParser(
+        description="LiteConcat v3.0: Concatenate project files into a single Markdown."
+    )
     parser.add_argument(
         "project",
         help="Project name, or 'list' to show available projects",
@@ -180,6 +250,7 @@ def main():
         return
 
     concat_project(args.project, config, config_path)
+
 
 if __name__ == "__main__":
     main()

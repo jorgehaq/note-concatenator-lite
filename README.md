@@ -49,3 +49,7 @@ List available projects:
 ```bash
 concat list
 ```
+
+At the end of the generated note, LiteConcat appends an extra section with the
+folder/file structure of all concatenated files (a tree skeleton of what was
+actually included).
