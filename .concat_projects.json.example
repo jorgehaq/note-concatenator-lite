@@ -1,0 +1,10 @@
+{
+  "my_project": {
+    "command": "concat my_project",
+    "note": "my_project.md",
+    "source": "/path/to/source",
+    "output": "/path/to/",
+    "extensions": [".py", ".md"],
+    "ignore": [".git", ".venv"]
+  }
+}

@@ -79,23 +79,27 @@ def load_config(config_path: Path):
 
 def list_projects(config: dict, config_path: Path) -> None:
     names = sorted([k for k in config.keys() if isinstance(k, str)])
-    print(f"{CLR_CYAN}{CLR_BOLD}Config:{CLR_RESET} {config_path}")
     if not names:
-        print(f"{CLR_YELLOW}No projects found in config.{CLR_RESET}")
+        print(f"{CLR_YELLOW}No projects found in {config_path}{CLR_RESET}")
         return
 
     for i, name in enumerate(names, start=1):
-        proj = config.get(name, {})
-        source = proj.get("source", "")
-        output = proj.get("output", "")
-        note_name = proj.get("note-name", "")
-        suffix = ""
-        if any([source, output, note_name]):
-            suffix = (
-                f"  {CLR_YELLOW}(source={source}, output={output}, "
-                f"note-name={note_name}){CLR_RESET}"
-            )
-        print(f"{i:>2}. {name}{suffix}")
+        print(f"{i}. concat {name}")
+
+    try:
+        selection = input(f"\n{CLR_CYAN}Select a project number to run (or press Enter to exit): {CLR_RESET}").strip()
+        if selection:
+            idx = int(selection) - 1
+            if 0 <= idx < len(names):
+                concat_project(names[idx], config, config_path)
+            else:
+                print(f"{CLR_RED}Invalid selection index.{CLR_RESET}")
+    except ValueError:
+        print(f"{CLR_RED}Invalid input. Please enter a number.{CLR_RESET}")
+    except EOFError:
+        pass
+    except KeyboardInterrupt:
+        print("\nExiting...")
 
 
 def _paths_to_tree(relative_paths: list[Path]) -> dict:
@@ -119,13 +123,13 @@ def _render_tree(tree: dict, prefix: str = "") -> list[str]:
 
     for idx, (name, kind) in enumerate(entries):
         last = idx == len(entries) - 1
-        branch = "└── " if last else "├── "
+        branch = " \\-- " if last else " |-- "
         if kind == "file":
             lines.append(f"{prefix}{branch}{name}")
             continue
 
         lines.append(f"{prefix}{branch}{name}/")
-        child_prefix = f"{prefix}{'    ' if last else '│   '}"
+        child_prefix = f"{prefix}{'    ' if last else ' |  '}"
         lines.extend(_render_tree(tree[name], prefix=child_prefix))
 
     return lines
@@ -150,32 +154,44 @@ def concat_project(project_name, config, config_path: Path):
         note_name += ".md"
         note_path = Path(note_name)
 
-    # Apply versioning if requested
-    if proj.get("versionar", False):
-        timestamp = datetime.now().strftime("-%y-%m-%d.%H-%M-%S")
-        stem = note_path.stem
-        suffix = note_path.suffix
-        note_name = f"{stem}{timestamp}{suffix}"
+    # Always apply versioning with timestamp
+    timestamp = datetime.now().strftime("-%y-%m-%d.%H-%M-%S")
+    stem = note_path.stem
+    suffix = note_path.suffix
+    note_name = f"{stem}{timestamp}{suffix}"
 
     # Final output path: base_path / project_name / note_name
     # NO .resolve() on output_file to avoid OSError on WSL2/drvfs symlinks
     output_file = base_path / project_name / note_name
 
-    extensions = proj.get("extensions", [])
+    extensions = [ext if ext.startswith(".") else f".{ext}" for ext in proj.get("extensions", [])]
     ignore_list = proj.get("ignore", [])
 
-    if not source_dir.exists() or not source_dir.is_dir():
-        print(
-            f"{CLR_RED}Error: Source directory '{source_dir}' does not exist or is "
-            f"not a directory.{CLR_RESET}"
-        )
+    try:
+        if not source_dir.exists() or not source_dir.is_dir():
+            print(
+                f"{CLR_RED}Error: Source directory '{source_dir}' does not exist or is "
+                f"not a directory.{CLR_RESET}"
+            )
+            sys.exit(1)
+
+        print(f"{CLR_CYAN}Concatenating {CLR_BOLD}{project_name}{CLR_RESET}...")
+        print(f"Source: {source_dir}")
+        print(f"Output: {output_file}")
+
+        output_file.parent.mkdir(parents=True, exist_ok=True)
+    except OSError as e:
+        import errno
+        if e.errno == errno.ENODEV:
+            failed_path = e.filename if e.filename else "one of the configured paths"
+            print(
+                f"{CLR_RED}Error: Connection lost to device (OSError 19) while accessing: "
+                f"{failed_path}{CLR_RESET}"
+            )
+            print(f"Check if your Windows drive (often G: or external) is mounted and functional in WSL.")
+        else:
+            print(f"{CLR_RED}FileSystem Error: {e}{CLR_RESET}")
         sys.exit(1)
-
-    print(f"{CLR_CYAN}Concatenating {CLR_BOLD}{project_name}{CLR_RESET}...")
-    print(f"Source: {source_dir}")
-    print(f"Output: {output_file}")
-
-    output_file.parent.mkdir(parents=True, exist_ok=True)
 
     try:
         with open(output_file, "w", encoding="utf-8") as out:

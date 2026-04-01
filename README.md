@@ -4,21 +4,48 @@ Extremely minimalist tool to concatenate project files into a single Markdown fi
 
 ## Setup
 
-1. **Permissions**: Make the script executable:
+Choose your preferred Python environment manager:
+
+### Option A: Modern Way (Using `uv` - Isolated & Blazing Fast)
+Requires `uv` installed. Keeps your system Python completely untouched.
+
+1. **Initialize the environment**:
    ```bash
-   chmod +x concat.py
+   cd /ABS/PATH/TO/note-concatenator-lite
+   uv venv --python 3.12
+   # uv pip install -r requirements.txt (If you have dependencies)
    ```
 
-2. **Alias**: Add an alias to your `~/.bashrc` or `~/.zshrc`:
+2. **Create the Alias**: Add this to your `~/.bashrc` or `~/.zshrc`. Notice it points directly to the isolated binary:
    ```bash
-   alias concat='python3 /ABS/PATH/TO/note-concatenator-lite/concat.py'
+   alias concat='/ABS/PATH/TO/note-concatenator-lite/.venv/bin/python /ABS/PATH/TO/note-concatenator-lite/concat.py'
    ```
-   *Note: Use the absolute path to `concat.py`.*
 
-3. **Reload shell**:
+### Option B: Classic Way (System Python & `venv`)
+Uses your OS-provided Python runtime.
+
+1. **Initialize the environment**:
    ```bash
-   source ~/.bashrc
+   cd /ABS/PATH/TO/note-concatenator-lite
+   python3 -m venv .venv
+   # source .venv/bin/activate && pip install -r requirements.txt (If you have dependencies)
    ```
+
+2. **Create the Alias**: Add this to your `~/.bashrc` or `~/.zshrc`:
+   ```bash
+   alias concat='/ABS/PATH/TO/note-concatenator-lite/.venv/bin/python /ABS/PATH/TO/note-concatenator-lite/concat.py'
+   ```
+
+---
+
+### Finalize Setup
+
+Make the script executable and reload your shell configuration:
+
+```bash
+chmod +x /ABS/PATH/TO/note-concatenator-lite/concat.py
+source ~/.bashrc  # or source ~/.zshrc
+```
 
 ## Configuration
 
@@ -53,3 +80,4 @@ concat list
 At the end of the generated note, LiteConcat appends an extra section with the
 folder/file structure of all concatenated files (a tree skeleton of what was
 actually included).
+```
