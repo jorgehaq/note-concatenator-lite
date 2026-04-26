@@ -197,9 +197,10 @@ def concat_project(project_name, config, config_path: Path):
         with open(output_file, "w", encoding="utf-8") as out:
             out.write(f"# Project: {project_name}\n\n")
 
-            count = 0
-            included_paths: list[Path] = []
-            for path in sorted(source_dir.rglob("*")):
+            # First pass: gather valid paths and build tree
+            valid_paths = []
+            # Sort paths case-insensitively to ensure alphabetical order
+            for path in sorted(source_dir.rglob("*"), key=lambda p: str(p).lower()):
                 if not path.is_file():
                     continue
 
@@ -208,37 +209,51 @@ def concat_project(project_name, config, config_path: Path):
                     continue
 
                 if path.suffix in extensions:
-                    try:
-                        relative_path = path.relative_to(source_dir)
-                        content = path.read_text(
-                            encoding="utf-8",
-                            errors="replace",
-                        )
+                    valid_paths.append(path)
 
-                        out.write(f"### 📄 {relative_path}\n")
-                        # Guess language for markdown block if possible, else empty
-                        lang = path.suffix[1:] if path.suffix else ""
-                        out.write(f"```{lang}\n")
-                        out.write(content)
-                        if not content.endswith("\n"):
-                            out.write("\n")
-                        out.write("```\n\n")
-                        count += 1
-                        included_paths.append(relative_path)
-                        print(f"  {CLR_GREEN}Added:{CLR_RESET} {relative_path}")
-                    except Exception as e:
-                        print(
-                            f"  {CLR_YELLOW}Skipped:{CLR_RESET} {path} "
-                            f"(Error: {e})"
-                        )
+            included_paths = [p.relative_to(source_dir) for p in valid_paths]
+            count = len(valid_paths)
 
-            out.write("## File structure (concatenated)\n\n")
+            # Write the file structure (tree) at the beginning
+            out.write("## Tabla de Contenido (Estructura de archivos)\n\n")
             out.write("```text\n")
             out.write(f"{project_name}/\n")
             tree = _paths_to_tree(included_paths)
             for line in _render_tree(tree):
                 out.write(f"{line}\n")
             out.write("```\n\n")
+
+            # Second pass: read and write file contents
+            for path in valid_paths:
+                try:
+                    relative_path = path.relative_to(source_dir)
+                    content = path.read_text(
+                        encoding="utf-8",
+                        errors="replace",
+                    )
+                    
+                    stat = path.stat()
+                    # Use creation/metadata change time and modification time
+                    created_at = datetime.fromtimestamp(stat.st_ctime).strftime('%Y-%m-%d %H:%M:%S')
+                    modified_at = datetime.fromtimestamp(stat.st_mtime).strftime('%Y-%m-%d %H:%M:%S')
+
+                    out.write("---\n\n")
+                    out.write(f"### 📄 {relative_path}\n")
+                    out.write(f"**Creación:** {created_at} | **Modificación:** {modified_at}\n\n")
+                    
+                    # Guess language for markdown block if possible, else empty
+                    lang = path.suffix[1:] if path.suffix else ""
+                    out.write(f"```{lang}\n")
+                    out.write(content)
+                    if not content.endswith("\n"):
+                        out.write("\n")
+                    out.write("```\n\n")
+                    print(f"  {CLR_GREEN}Added:{CLR_RESET} {relative_path}")
+                except Exception as e:
+                    print(
+                        f"  {CLR_YELLOW}Skipped:{CLR_RESET} {path} "
+                        f"(Error: {e})"
+                    )
 
         print(
             f"\n{CLR_GREEN}{CLR_BOLD}Success!{CLR_RESET} {count} files "
