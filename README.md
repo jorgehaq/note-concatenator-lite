@@ -9,32 +9,39 @@ Choose your preferred Python environment manager:
 ### Option A: Modern Way (Using `uv` - Isolated & Blazing Fast)
 Requires `uv` installed. Keeps your system Python completely untouched.
 
-1. **Initialize the environment**:
-   ```bash
-   cd /ABS/PATH/TO/note-concatenator-lite
-   uv venv --python 3.12
-   # uv pip install -r requirements.txt (If you have dependencies)
-   ```
+La forma robusta:
+Como uv gestiona entornos de forma eficiente, instala el entorno una sola vez dentro de la carpeta:
 
-2. **Create the Alias**: Add this to your `~/.bashrc` or `~/.zshrc`. Notice it points directly to the isolated binary:
-   ```bash
-   alias concat='/ABS/PATH/TO/note-concatenator-lite/.venv/bin/python /ABS/PATH/TO/note-concatenator-lite/concat.py'
-   ```
+```bash
+cd /ruta/a/note-concatenator-lite
+uv venv
+```
+
+Luego, ajusta tu alias en `~/.bashrc` para que sea más resiliente:
+
+```bash
+alias concat='$(pwd)/.venv/bin/python $(pwd)/concat.py'
+```
+
+*Nota: Esto requiere que ejecutes concat siempre desde la raíz del proyecto.*
+
 
 ### Option B: Classic Way (System Python & `venv`)
 Uses your OS-provided Python runtime.
 
 1. **Initialize the environment**:
    ```bash
-   cd /ABS/PATH/TO/note-concatenator-lite
+   cd /ruta/a/note-concatenator-lite
    python3 -m venv .venv
    # source .venv/bin/activate && pip install -r requirements.txt (If you have dependencies)
    ```
 
 2. **Create the Alias**: Add this to your `~/.bashrc` or `~/.zshrc`:
    ```bash
-   alias concat='/ABS/PATH/TO/note-concatenator-lite/.venv/bin/python /ABS/PATH/TO/note-concatenator-lite/concat.py'
+   alias concat='$(pwd)/.venv/bin/python $(pwd)/concat.py'
    ```
+
+*Nota: Esto requiere que ejecutes concat siempre desde la raíz del proyecto.*
 
 ---
 
@@ -43,7 +50,7 @@ Uses your OS-provided Python runtime.
 Make the script executable and reload your shell configuration:
 
 ```bash
-chmod +x /ABS/PATH/TO/note-concatenator-lite/concat.py
+chmod +x $(pwd)/concat.py
 source ~/.bashrc  # or source ~/.zshrc
 ```
 
