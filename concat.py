@@ -116,9 +116,9 @@ def _paths_to_tree(relative_paths: list[Path]) -> dict:
 def _render_tree(tree: dict, prefix: str = "") -> list[str]:
     lines: list[str] = []
     
-    # Se elimina 'sorted' para conservar el orden cronológico de inserción
-    dir_entries = [k for k in tree.keys() if k != "__files__"]
-    files = tree.get("__files__", [])
+    # Ordenar directorios y archivos alfabéticamente (sin distinguir mayúsculas de minúsculas)
+    dir_entries = sorted([k for k in tree.keys() if k != "__files__"], key=lambda s: s.lower())
+    files = sorted(tree.get("__files__", []), key=lambda s: s.lower())
     
     entries: list[tuple[str, str]] = [(d, "dir") for d in dir_entries] + [
         (f, "file") for f in files
@@ -214,8 +214,8 @@ def concat_project(project_name, config, config_path: Path):
                 if path.suffix in extensions:
                     valid_paths.append(path)
 
-            # Ordenar los archivos cronológicamente por fecha de modificación (de más antiguo a más reciente)
-            valid_paths.sort(key=lambda p: p.stat().st_mtime)
+            # Ordenar los archivos alfabéticamente (sin distinguir mayúsculas de minúsculas) por su ruta relativa
+            valid_paths.sort(key=lambda p: str(p.relative_to(source_dir)).lower())
 
             included_paths = [p.relative_to(source_dir) for p in valid_paths]
             count = len(valid_paths)
