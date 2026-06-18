@@ -61,7 +61,7 @@ def load_config(config_path: Path):
             config_path = git_root / LOCAL_CONFIG_BASENAME
 
     if not config_path.exists():
-        with open(config_path, "w") as f:
+        with open(config_path, "w", encoding="utf-8") as f:
             json.dump(DEFAULT_CONFIG_TEMPLATE, f, indent=2)
         print(
             f"{CLR_YELLOW}Warning: {config_path} not found. Created a template."
@@ -70,7 +70,7 @@ def load_config(config_path: Path):
         return DEFAULT_CONFIG_TEMPLATE
 
     try:
-        with open(config_path, "r") as f:
+        with open(config_path, "r", encoding="utf-8") as f:
             return json.load(f)
     except Exception as e:
         print(f"{CLR_RED}Error: Failed to parse config file: {e}{CLR_RESET}")
@@ -197,7 +197,7 @@ def concat_project(project_name, config, config_path: Path):
         sys.exit(1)
 
     try:
-        with open(output_file, "w", encoding="utf-8") as out:
+        with open(output_file, "w", encoding="utf-8-sig") as out:
             out.write(f"# Project: {project_name}\n\n")
 
             # First pass: gather valid paths and build tree
@@ -234,7 +234,7 @@ def concat_project(project_name, config, config_path: Path):
                 try:
                     relative_path = path.relative_to(source_dir)
                     content = path.read_text(
-                        encoding="utf-8",
+                        encoding="utf-8-sig",
                         errors="replace",
                     )
                     
