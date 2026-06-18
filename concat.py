@@ -244,8 +244,8 @@ def concat_project(project_name, config, config_path: Path):
                     modified_at = datetime.fromtimestamp(stat.st_mtime).strftime('%Y-%m-%d %H:%M:%S')
 
                     out.write("---\n\n")
-                    out.write(f"### 📄 {relative_path}\n")
-                    out.write(f"**Creación:** {created_at} | **Modificación:** {modified_at}\n\n")
+                    out.write(f"### {relative_path}\n")
+                    out.write(f"**Creado:** {created_at} | **Modificado:** {modified_at}\n\n")
                     
                     # Guess language for markdown block if possible, else empty
                     lang = path.suffix[1:] if path.suffix else ""
