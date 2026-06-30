@@ -167,7 +167,9 @@ def concat_project(project_name, config, config_path: Path):
     # NO .resolve() on output_file to avoid OSError on WSL2/drvfs symlinks
     output_file = base_path / project_name / note_name
 
-    extensions = [ext if ext.startswith(".") else f".{ext}" for ext in proj.get("extensions", [])]
+    extensions_config = proj.get("extensions", [])
+    target_exts = {ext if ext.startswith(".") else f".{ext}" for ext in extensions_config}
+    target_names = {ext for ext in extensions_config if not ext.startswith(".")}
     ignore_list = proj.get("ignore", [])
 
     try:
@@ -211,7 +213,7 @@ def concat_project(project_name, config, config_path: Path):
                 if any(ignored in path.parts for ignored in ignore_list):
                     continue
 
-                if path.suffix in extensions:
+                if path.suffix in target_exts or path.name in target_names:
                     valid_paths.append(path)
 
             # Ordenar los archivos alfabéticamente (sin distinguir mayúsculas de minúsculas) por su ruta relativa
