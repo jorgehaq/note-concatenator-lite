@@ -54,7 +54,7 @@ def get_config_path() -> Path:
     return HOME_CONFIG_PATH
 
 
-def load_config(config_path: Path):
+def load_config(config_path: Path, quiet: bool = False):
     if not config_path.exists():
         git_root = _find_git_root(Path.cwd())
         if git_root is not None and config_path == HOME_CONFIG_PATH:
@@ -63,10 +63,11 @@ def load_config(config_path: Path):
     if not config_path.exists():
         with open(config_path, "w", encoding="utf-8") as f:
             json.dump(DEFAULT_CONFIG_TEMPLATE, f, indent=2)
-        print(
-            f"{CLR_YELLOW}Warning: {config_path} not found. Created a template."
-            f"{CLR_RESET}"
-        )
+        if not quiet:
+            print(
+                f"{CLR_YELLOW}Warning: {config_path} not found. Created a template."
+                f"{CLR_RESET}"
+            )
         return DEFAULT_CONFIG_TEMPLATE
 
     try:
@@ -138,10 +139,36 @@ def _render_tree(tree: dict, prefix: str = "") -> list[str]:
     return lines
 
 
-def concat_project(project_name, config, config_path: Path):
+def _build_file_entry(path: Path, source_dir: Path) -> dict:
+    """Build a metadata+content dict for a single file."""
+    relative_path = path.relative_to(source_dir)
+    content = path.read_text(
+        encoding="utf-8-sig",
+        errors="replace",
+    )
+    stat = path.stat()
+    created_at = datetime.fromtimestamp(stat.st_ctime).isoformat()
+    modified_at = datetime.fromtimestamp(stat.st_mtime).isoformat()
+    language = path.suffix[1:] if path.suffix else ""
+
+    return {
+        "relative_path": str(relative_path),
+        "created_at": created_at,
+        "modified_at": modified_at,
+        "language": language,
+        "content": content,
+    }
+
+
+def concat_project(project_name, config, config_path: Path, json_output: bool = False,
+                   output_json_path: Path | None = None, quiet: bool = False):
     if project_name not in config:
-        print(f"{CLR_RED}Error: Project '{project_name}' not found in {config_path}{CLR_RESET}")
-        print(f"Available projects: {', '.join(config.keys())}")
+        msg = f"Error: Project '{project_name}' not found in {config_path}"
+        if json_output:
+            print(json.dumps({"error": msg}, ensure_ascii=False))
+        else:
+            print(f"{CLR_RED}{msg}{CLR_RESET}")
+            print(f"Available projects: {', '.join(config.keys())}")
         sys.exit(1)
 
     proj = config[project_name]
@@ -174,28 +201,41 @@ def concat_project(project_name, config, config_path: Path):
 
     try:
         if not source_dir.exists() or not source_dir.is_dir():
-            print(
-                f"{CLR_RED}Error: Source directory '{source_dir}' does not exist or is "
-                f"not a directory.{CLR_RESET}"
+            msg = (
+                f"Error: Source directory '{source_dir}' does not exist or is "
+                f"not a directory."
             )
+            if json_output:
+                print(json.dumps({"error": msg}, ensure_ascii=False))
+            else:
+                print(f"{CLR_RED}{msg}{CLR_RESET}")
             sys.exit(1)
 
-        print(f"{CLR_CYAN}Concatenating {CLR_BOLD}{project_name}{CLR_RESET}...")
-        print(f"Source: {source_dir}")
-        print(f"Output: {output_file}")
+        if not quiet and not json_output:
+            print(f"{CLR_CYAN}Concatenating {CLR_BOLD}{project_name}{CLR_RESET}...")
+            print(f"Source: {source_dir}")
+            print(f"Output: {output_file}")
 
         output_file.parent.mkdir(parents=True, exist_ok=True)
     except OSError as e:
         import errno
         if e.errno == errno.ENODEV:
             failed_path = e.filename if e.filename else "one of the configured paths"
-            print(
-                f"{CLR_RED}Error: Connection lost to device (OSError 19) while accessing: "
-                f"{failed_path}{CLR_RESET}"
+            msg = (
+                f"Error: Connection lost to device (OSError 19) while accessing: "
+                f"{failed_path}"
             )
-            print(f"Check if your Windows drive (often G: or external) is mounted and functional in WSL.")
+            if json_output:
+                print(json.dumps({"error": msg}, ensure_ascii=False))
+            else:
+                print(f"{CLR_RED}{msg}{CLR_RESET}")
+                print(f"Check if your Windows drive (often G: or external) is mounted and functional in WSL.")
         else:
-            print(f"{CLR_RED}FileSystem Error: {e}{CLR_RESET}")
+            msg = f"FileSystem Error: {e}"
+            if json_output:
+                print(json.dumps({"error": msg}, ensure_ascii=False))
+            else:
+                print(f"{CLR_RED}{msg}{CLR_RESET}")
         sys.exit(1)
 
     try:
@@ -239,16 +279,16 @@ def concat_project(project_name, config, config_path: Path):
                         encoding="utf-8-sig",
                         errors="replace",
                     )
-                    
+
                     stat = path.stat()
                     # Use creation/metadata change time and modification time
-                    created_at = datetime.fromtimestamp(stat.st_ctime).strftime('%Y-%m-%d %H:%M:%S')
-                    modified_at = datetime.fromtimestamp(stat.st_mtime).strftime('%Y-%m-%d %H:%M:%S')
+                    created_at = datetime.fromtimestamp(stat.st_ctime).isoformat()
+                    modified_at = datetime.fromtimestamp(stat.st_mtime).isoformat()
 
                     out.write("---\n\n")
                     out.write(f"### {relative_path}\n")
                     out.write(f"**Creado:** {created_at} | **Modificado:** {modified_at}\n\n")
-                    
+
                     # Guess language for markdown block if possible, else empty
                     lang = path.suffix[1:] if path.suffix else ""
                     out.write(f"```{lang}\n")
@@ -256,19 +296,48 @@ def concat_project(project_name, config, config_path: Path):
                     if not content.endswith("\n"):
                         out.write("\n")
                     out.write("```\n\n")
-                    print(f"  {CLR_GREEN}Added:{CLR_RESET} {relative_path}")
+                    if not quiet and not json_output:
+                        print(f"  {CLR_GREEN}Added:{CLR_RESET} {relative_path}")
                 except Exception as e:
-                    print(
-                        f"  {CLR_YELLOW}Skipped:{CLR_RESET} {path} "
-                        f"(Error: {e})"
-                    )
+                    if not quiet and not json_output:
+                        print(
+                            f"  {CLR_YELLOW}Skipped:{CLR_RESET} {path} "
+                            f"(Error: {e})"
+                        )
 
-        print(
-            f"\n{CLR_GREEN}{CLR_BOLD}Success!{CLR_RESET} {count} files "
-            f"concatenated into {output_file}"
-        )
+        if json_output:
+            # Build the JSON payload for headless mode
+            tree_lines = _render_tree(_paths_to_tree(included_paths))
+            files_payload = [_build_file_entry(p, source_dir) for p in valid_paths]
+
+            payload = {
+                "project": project_name,
+                "source": str(source_dir),
+                "output": str(output_file),
+                "files_count": count,
+                "files": files_payload,
+                "tree": tree_lines,
+            }
+
+            # Print clean JSON to stdout (no ANSI)
+            print(json.dumps(payload, ensure_ascii=False, indent=2))
+
+            # Optionally write JSON payload to a file
+            if output_json_path is not None:
+                output_json_path.parent.mkdir(parents=True, exist_ok=True)
+                with open(output_json_path, "w", encoding="utf-8") as jf:
+                    json.dump(payload, jf, ensure_ascii=False, indent=2)
+
+        elif not quiet:
+            print(
+                f"\n{CLR_GREEN}{CLR_BOLD}Success!{CLR_RESET} {count} files "
+                f"concatenated into {output_file}"
+            )
     except Exception as e:
-        print(f"{CLR_RED}Error: Failed to write to output file: {e}{CLR_RESET}")
+        if json_output:
+            print(json.dumps({"error": f"Error: Failed to write to output file: {e}"}, ensure_ascii=False))
+        else:
+            print(f"{CLR_RED}Error: Failed to write to output file: {e}{CLR_RESET}")
         sys.exit(1)
 
 
@@ -280,15 +349,39 @@ def main():
         "project",
         help="Project name, or 'list' to show available projects",
     )
+    parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Emit a JSON payload to stdout instead of ANSI-colored messages.",
+    )
+    parser.add_argument(
+        "--output-json",
+        type=str,
+        default=None,
+        help="Write the JSON payload to the given file path (also emits to stdout with --json).",
+    )
+    parser.add_argument(
+        "--quiet",
+        action="store_true",
+        help="Suppress progress and informational prints.",
+    )
     args = parser.parse_args()
 
     config_path = get_config_path()
-    config = load_config(config_path)
+    config = load_config(config_path, quiet=args.quiet or args.json)
     if args.project == "list":
         list_projects(config, config_path)
         return
 
-    concat_project(args.project, config, config_path)
+    output_json_path = Path(args.output_json) if args.output_json else None
+    concat_project(
+        args.project,
+        config,
+        config_path,
+        json_output=args.json,
+        output_json_path=output_json_path,
+        quiet=args.quiet,
+    )
 
 
 if __name__ == "__main__":
